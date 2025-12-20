@@ -1,5 +1,4 @@
 using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
 
 public class ConveyorBeltScroll : MonoBehaviour
@@ -18,6 +17,12 @@ public class ConveyorBeltScroll : MonoBehaviour
     [Header("Options")]
     [Tooltip("Prevent items from rotating/rolling")]
     public bool freezeItemRotation = true;
+
+    [Tooltip("Pull items toward the center of the belt")]
+    public bool centerItems = true;
+
+    [Tooltip("How strongly items are pulled to center (higher = faster)")]
+    public float centeringStrength = 5f;
 
     private Material material;
     private Vector2 offset;
@@ -53,18 +58,18 @@ public class ConveyorBeltScroll : MonoBehaviour
         }
     }
 
-    void OnTriggerEnter(Collider collision)
+    void OnCollisionEnter(Collision collision)
     {
-        Rigidbody rb = collision.GetComponent<Rigidbody>();
+        Rigidbody rb = collision.rigidbody;
         if (rb != null && !rb.isKinematic)
         {
             itemsOnBelt.Add(rb);
         }
     }
 
-    void OnTriggerExit(Collider collision)
+    void OnCollisionExit(Collision collision)
     {
-        Rigidbody rb = collision.GetComponent<Rigidbody>();
+        Rigidbody rb = collision.rigidbody;
         if (rb != null)
         {
             itemsOnBelt.Remove(rb);
@@ -76,14 +81,35 @@ public class ConveyorBeltScroll : MonoBehaviour
         // Clean up any null references
         itemsOnBelt.RemoveWhere(rb => rb == null);
 
+        // Get belt's center line
+        Vector3 beltCenter = transform.position;
+
         foreach (Rigidbody rb in itemsOnBelt)
         {
             // Convert local direction to world space using belt's rotation
             Vector3 worldDirection = transform.TransformDirection(itemMoveDirection.normalized);
 
             // Create target velocity in world space
-            Vector3 targetVelocity = worldDirection * itemSpeed;
+            Vector3 targetVelocity = worldDirection * itemSpeed * -1f;
             targetVelocity.y = rb.linearVelocity.y; // Preserve gravity
+
+            // CENTER ITEMS TOWARD BELT MIDDLE
+            if (centerItems)
+            {
+                // Get the perpendicular direction to belt movement (the "width" axis)
+                Vector3 rightDirection = transform.right;
+
+                // Project item position onto the belt's plane
+                Vector3 itemPos = rb.position;
+                Vector3 toBelt = beltCenter - itemPos;
+
+                // Calculate offset from center (only perpendicular to movement)
+                float offsetFromCenter = Vector3.Dot(toBelt, rightDirection);
+
+                // Add centering force perpendicular to movement direction
+                Vector3 centeringForce = rightDirection * offsetFromCenter * centeringStrength;
+                targetVelocity += centeringForce;
+            }
 
             // Apply velocity
             rb.linearVelocity = Vector3.Lerp(rb.linearVelocity, targetVelocity, Time.fixedDeltaTime * 10f);
