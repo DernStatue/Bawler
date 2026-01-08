@@ -15,6 +15,13 @@ public class MiningDrill : MonoBehaviour
     [Tooltip("Layer of resource nodes")]
     public LayerMask resourceLayer;
 
+    [Header("Resource Filtering")]
+    [Tooltip("Only mine nodes with these tags (leave empty for any)")]
+    public string[] acceptedResourceTags;
+
+    [Tooltip("Mine any resource type if no matching tag found")]
+    public bool mineAnyIfNoMatch = true;
+
     [Header("Visual Feedback")]
     public bool showMiningEffect = true;
     public Color miningColor = Color.yellow;
@@ -96,12 +103,18 @@ public class MiningDrill : MonoBehaviour
 
         if (hits.Length > 0)
         {
-            // Get the closest node
+            // Get the closest node that matches tag filter
             float closestDist = Mathf.Infinity;
             Collider closestHit = null;
 
             foreach (Collider hit in hits)
             {
+                ResourceNode node = hit.GetComponent<ResourceNode>();
+                if (node == null) continue;
+
+                // Check if node matches accepted tags
+                if (!CanMineNode(node)) continue;
+
                 float dist = Vector3.Distance(transform.position, hit.transform.position);
                 if (dist < closestDist)
                 {
@@ -115,14 +128,40 @@ public class MiningDrill : MonoBehaviour
                 currentNode = closestHit.GetComponent<ResourceNode>();
                 if (currentNode != null)
                 {
-                    Debug.Log($"Drill found resource node: {currentNode.resourceName}");
+                    Debug.Log($"Drill found resource node: {currentNode.resourceName} (Tag: {currentNode.tag})");
                 }
+            }
+            else
+            {
+                currentNode = null;
+                Debug.Log("No matching resource nodes in range");
             }
         }
         else
         {
             currentNode = null;
         }
+    }
+
+    bool CanMineNode(ResourceNode node)
+    {
+        // If no tags specified, mine anything
+        if (acceptedResourceTags == null || acceptedResourceTags.Length == 0)
+        {
+            return true;
+        }
+
+        // Check if node's tag matches any accepted tags
+        foreach (string acceptedTag in acceptedResourceTags)
+        {
+            if (node.CompareTag(acceptedTag))
+            {
+                return true;
+            }
+        }
+
+        // Return based on mineAnyIfNoMatch setting
+        return mineAnyIfNoMatch;
     }
 
     void Mine()
